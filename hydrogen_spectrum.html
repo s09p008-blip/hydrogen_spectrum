@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>水素原子スペクトル - ボーア模型シミュレーション</title>
+  <style>
+    /* ========================================
+       基本スタイル・カラーパレット
+    ======================================== */
+    :root {
+      --bg-dark: #0a0e17;
+      --bg-card: #141b2d;
+      --bg-card-hover: #1a2340;
+      --border-color: #2a3654;
+      --text-primary: #e8eaf0;
+      --text-secondary: #8892a8;
+      --text-dim: #5a6478;
+      --accent-blue: #4a9eff;
+      --accent-cyan: #00d4aa;
+      --accent-purple: #a855f7;
+      --accent-red: #ff6b6b;
+      --accent-orange: #ff9f43;
+      --accent-yellow: #ffd93d;
+      --glow-blue: rgba(74, 158, 255, 0.4);
+      --glow-cyan: rgba(0, 212, 170, 0.4);
+      
+      /* 系列の色 */
+      --lyman-color: #a855f7;
+      --balmer-color: #4a9eff;
+      --paschen-color: #ff6b6b;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+    
+    /* ========================================
+       全体レイアウト（デスクトップ）
+    ======================================== */
+    .app-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr 200px;
+      grid-template-rows: auto 1fr auto;
+      gap: 12px;
+      padding: 12px;
+      min-height: 100vh;
+      min-height: 100dvh;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    /* ========================================
+       ヘッダー（タイトル）
+    ======================================== */
+    .header {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 8px 0;
+    }
+    
+    .header h1 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: 0.03em;
+    }
+    
+    .header h1 span {
+      color: var(--accent-cyan);
+    }
+    
+    /* ========================================
+       共通カードスタイル
+    ======================================== */
+    .card {
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+      opacity: 0.5;
+    }
+    
+    .section-title {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .section-title::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--glow-cyan);
+    }
+    
+    /* ========================================
+       メインエリア（ボーア模型＋エネルギー準位図）
+    ======================================== */
+    .main-area {
+      grid-column: 1 / 3;
+      display: flex;
+      gap: 0;
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+    }
+    
+    .bohr-section {
+      flex: 1;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      border-right: 1px solid var(--border-color);
+    }
+    
+    .energy-section {
+      width: 160px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #bohrCanvas {
+      flex: 1;
+      border-radius: 8px;
+      cursor: grab;
+      background: radial-gradient(ellipse at center, #0f1525 0%, #080c14 100%);
+      touch-action: none;
+    }
+    
+    #bohrCanvas:active {
+      cursor: grabbing;
+    }
+    
+    #energyCanvas {
+      flex: 1;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #0f1525 0%, #080c14 100%);
+    }
+    
+    .instruction {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      background: rgba(10, 14, 23, 0.9);
+      padding: 6px 12px;
+      border-radius: 16px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    
+    /* ========================================
+       コントロールパネル
+    ======================================== */
+    .control-section {
+      grid-column: 3;
+      grid-row: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .control-label {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .btn {
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 44px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      color: #000;
+      box-shadow: 0 4px 12px rgba(0, 212, 170, 0.3);
+    }
+    
+    .btn-primary:hover, .btn-primary:active {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(0, 212, 170, 0.4);
+    }
+    
+    .btn-secondary {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .btn-secondary:hover, .btn-secondary:active {
+      background: #1f2a45;
+      border-color: var(--accent-blue);
+    }
+    
+    /* 系列フィルター */
+    .series-filters {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .filter-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+      min-height: 40px;
+    }
+    
+    .filter-item:hover, .filter-item:active {
+      background: rgba(255,255,255,0.05);
+    }
+    
+    .filter-item input[type="checkbox"] {
+      display: none;
+    }
+    
+    .filter-checkbox {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    
+    .filter-item input:checked + .filter-checkbox {
+      border-color: var(--accent-cyan);
+      background: var(--accent-cyan);
+    }
+    
+    .filter-item input:checked + .filter-checkbox::after {
+      content: '✓';
+      color: #000;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    
+    .filter-label {
+      font-size: 0.75rem;
+      flex: 1;
+    }
+    
+    .filter-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    
+    .filter-dot.lyman { background: var(--lyman-color); box-shadow: 0 0 6px var(--lyman-color); }
+    .filter-dot.balmer { background: var(--balmer-color); box-shadow: 0 0 6px var(--balmer-color); }
+    .filter-dot.paschen { background: var(--paschen-color); box-shadow: 0 0 6px var(--paschen-color); }
+    
+    /* 情報表示 */
+    .info-box {
+      background: rgba(74, 158, 255, 0.1);
+      border: 1px solid rgba(74, 158, 255, 0.3);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    
+    .info-title {
+      font-size: 0.7rem;
+      color: var(--accent-blue);
+      margin-bottom: 6px;
+    }
+    
+    .info-content {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    
+    .info-highlight {
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+    
+    /* ========================================
+       スペクトル表示部
+    ======================================== */
+    .spectrum-section {
+      grid-column: 1 / -1;
+    }
+    
+    .spectrum-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    #spectrumCanvas {
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #0a0e17 0%, #050810 100%);
+    }
+    
+    /* 凡例 */
+    .spectrum-legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+    }
+    
+    .legend-bar {
+      width: 20px;
+      height: 4px;
+      border-radius: 2px;
+    }
+    
+    .legend-bar.uv {
+      background: linear-gradient(90deg, #6b21a8, #a855f7);
+    }
+    
+    .legend-bar.visible {
+      background: linear-gradient(90deg, #7c3aed, #3b82f6, #10b981, #eab308, #f97316, #ef4444);
+    }
+    
+    .legend-bar.ir {
+      background: linear-gradient(90deg, #dc2626, #7f1d1d);
+    }
+    
+    /* ========================================
+       タブレット対応（横向き）
+    ======================================== */
+    @media (max-width: 1024px) {
+      .app-container {
+        grid-template-columns: 1fr 180px;
+        grid-template-rows: auto 1fr auto;
+      }
+      
+      .main-area {
+        grid-column: 1;
+      }
+      
+      .energy-section {
+        width: 140px;
+      }
+      
+      .control-section {
+        grid-column: 2;
+        grid-row: 2;
+      }
+    }
+    
+    /* ========================================
+       タブレット・スマホ対応（縦向き）
+    ======================================== */
+    @media (max-width: 768px) {
+      .app-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto;
+        gap: 10px;
+        padding: 10px;
+      }
+      
+      .header h1 {
+        font-size: 1.1rem;
+      }
+      
+      .main-area {
+        grid-column: 1;
+        min-height: 350px;
+      }
+      
+      .energy-section {
+        width: 120px;
+      }
+      
+      .control-section {
+        grid-column: 1;
+        grid-row: 3;
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+      
+      .control-section .card {
+        flex: 1;
+        min-width: 140px;
+      }
+      
+      .spectrum-section {
+        grid-column: 1;
+        grid-row: 4;
+      }
+      
+      #spectrumCanvas {
+        height: 100px;
+      }
+      
+      .instruction {
+        font-size: 0.65rem;
+        padding: 5px 10px;
+      }
+    }
+    
+    /* ========================================
+       小さいスマホ対応
+    ======================================== */
+    @media (max-width: 480px) {
+      .app-container {
+        padding: 8px;
+        gap: 8px;
+      }
+      
+      .header h1 {
+        font-size: 1rem;
+      }
+      
+      .main-area {
+        flex-direction: column;
+        min-height: 400px;
+      }
+      
+      .bohr-section {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        min-height: 250px;
+      }
+      
+      .energy-section {
+        width: 100%;
+        min-height: 150px;
+      }
+      
+      .control-section {
+        flex-direction: column;
+      }
+      
+      .control-section .card {
+        width: 100%;
+      }
+      
+      .series-filters {
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+      
+      .filter-item {
+        flex: 1;
+        min-width: 100px;
+      }
+      
+      .btn {
+        padding: 12px;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- ヘッダー -->
+    <header class="header">
+      <h1>水素原子の<span>スペクトル</span></h1>
+    </header>
+    
+    <!-- メインエリア（ボーア模型＋エネルギー準位図を横並び） -->
+    <div class="main-area">
+      <section class="bohr-section">
+        <div class="section-title">ボーア模型</div>
+        <canvas id="bohrCanvas"></canvas>
+        <div class="instruction">💡 電子をドラッグして別の軌道へ移動（内側で放出、外側で励起）</div>
+      </section>
+      
+      <section class="energy-section">
+        <div class="section-title">エネルギー</div>
+        <canvas id="energyCanvas"></canvas>
+      </section>
+    </div>
+    
+    <!-- コントロールパネル -->
+    <section class="control-section">
+      <div class="card">
+        <div class="control-group">
+          <div class="control-label">操作</div>
+          <button class="btn btn-primary" id="resetBtn">🔄 n=6 に戻す</button>
+          <button class="btn btn-secondary" id="clearSpectrumBtn">🧹 スペクトル消去</button>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="control-group">
+          <div class="control-label">系列フィルター</div>
+          <div class="series-filters">
+            <label class="filter-item">
+              <input type="checkbox" id="showLyman" checked>
+              <span class="filter-checkbox"></span>
+              <span class="filter-label">ライマン</span>
+              <span class="filter-dot lyman"></span>
+            </label>
+            <label class="filter-item">
+              <input type="checkbox" id="showBalmer" checked>
+              <span class="filter-checkbox"></span>
+              <span class="filter-label">バルマー</span>
+              <span class="filter-dot balmer"></span>
+            </label>
+            <label class="filter-item">
+              <input type="checkbox" id="showPaschen" checked>
+              <span class="filter-checkbox"></span>
+              <span class="filter-label">パッシェン</span>
+              <span class="filter-dot paschen"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="info-box">
+          <div class="info-title">📊 最後の遷移</div>
+          <div class="info-content" id="transitionInfo">
+            電子を移動させると<br>ここに情報が表示されます<br><span style="color:var(--text-dim);font-size:0.7rem;">内側→放出 / 外側→励起</span>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- スペクトル表示 -->
+    <section class="spectrum-section card">
+      <div class="spectrum-header">
+        <div class="section-title">放出スペクトル（累積記録）</div>
+      </div>
+      <canvas id="spectrumCanvas"></canvas>
+      <div class="spectrum-legend">
+        <div class="legend-item">
+          <div class="legend-bar uv"></div>
+          <span>紫外線</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-bar visible"></div>
+          <span>可視光</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-bar ir"></div>
+          <span>赤外線</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // ========================================
+    // 物理定数と計算
+    // ========================================
+    const PHYSICS = {
+      // 水素原子のエネルギー準位（eV）: E_n = -13.6 / n^2
+      getEnergy: (n) => -13.6 / (n * n),
+      
+      // 遷移エネルギー（eV）: ΔE = E_final - E_initial
+      getTransitionEnergy: (nFrom, nTo) => {
+        return PHYSICS.getEnergy(nTo) - PHYSICS.getEnergy(nFrom);
+      },
+      
+      // エネルギーから波長へ変換（nm）: λ = hc/E = 1240/E
+      energyToWavelength: (energyEV) => {
+        return 1240 / Math.abs(energyEV);
+      },
+      
+      // 波長から色へ変換（RGB）
+      wavelengthToColor: (wavelength) => {
+        let r, g, b;
+        
+        if (wavelength < 380) {
+          // 紫外線（紫で表現）
+          r = 147; g = 51; b = 234;
+        } else if (wavelength < 440) {
+          // 紫
+          r = Math.floor(255 * (440 - wavelength) / 60 + 100);
+          g = 0;
+          b = 255;
+        } else if (wavelength < 490) {
+          // 青→シアン
+          r = 0;
+          g = Math.floor(255 * (wavelength - 440) / 50);
+          b = 255;
+        } else if (wavelength < 510) {
+          // シアン→緑
+          r = 0;
+          g = 255;
+          b = Math.floor(255 * (510 - wavelength) / 20);
+        } else if (wavelength < 580) {
+          // 緑→黄
+          r = Math.floor(255 * (wavelength - 510) / 70);
+          g = 255;
+          b = 0;
+        } else if (wavelength < 645) {
+          // 黄→赤
+          r = 255;
+          g = Math.floor(255 * (645 - wavelength) / 65);
+          b = 0;
+        } else if (wavelength < 780) {
+          // 赤
+          r = 255;
+          g = 0;
+          b = 0;
+        } else {
+          // 赤外線（暗い赤で表現）
+          r = 180; g = 50; b = 50;
+        }
+        
+        return { r, g, b };
+      },
+      
+      // 系列の判定
+      getSeries: (nTo) => {
+        if (nTo === 1) return 'lyman';
+        if (nTo === 2) return 'balmer';
+        if (nTo === 3) return 'paschen';
+        return 'other';
+      },
+      
+      // 系列名（日本語）
+      getSeriesName: (series) => {
+        const names = {
+          lyman: 'ライマン系列',
+          balmer: 'バルマー系列',
+          paschen: 'パッシェン系列',
+          other: 'その他'
+        };
+        return names[series] || series;
+      },
+      
+      // 光の種類
+      getLightType: (wavelength) => {
+        if (wavelength < 380) return '紫外線 (UV)';
+        if (wavelength <= 780) return '可視光';
+        return '赤外線 (IR)';
+      }
+    };
+    
+    // ========================================
+    // グローバル状態
+    // ========================================
+    const state = {
+      electronN: 4,               // 電子の現在の軌道（n=1〜6）
+      electronPos: { x: 0, y: 0 }, // 電子の現在位置
+      isDragging: false,
+      dragStartN: null,
+      dragTargetN: null,          // ドラッグ中のターゲット軌道
+      dragCurrentPos: null,       // ドラッグ中の現在位置
+      emittedPhotons: [],         // 放出された光子のアニメーション用
+      spectrumLines: [],          // スペクトルに記録された線
+      lastTransition: null,       // 最後の遷移情報
+      filters: {
+        lyman: true,
+        balmer: true,
+        paschen: true
+      }
+    };
+    
+    // ========================================
+    // キャンバス初期化
+    // ========================================
+    const bohrCanvas = document.getElementById('bohrCanvas');
+    const bohrCtx = bohrCanvas.getContext('2d');
+    const energyCanvas = document.getElementById('energyCanvas');
+    const energyCtx = energyCanvas.getContext('2d');
+    const spectrumCanvas = document.getElementById('spectrumCanvas');
+    const spectrumCtx = spectrumCanvas.getContext('2d');
+    
+    // キャンバスサイズ調整
+    function resizeCanvases() {
+      const dpr = window.devicePixelRatio || 1;
+      
+      // ボーア模型キャンバス
+      const bohrRect = bohrCanvas.getBoundingClientRect();
+      bohrCanvas.width = bohrRect.width * dpr;
+      bohrCanvas.height = bohrRect.height * dpr;
+      bohrCtx.setTransform(1, 0, 0, 1, 0, 0);
+      bohrCtx.scale(dpr, dpr);
+      
+      // エネルギー準位キャンバス
+      const energyRect = energyCanvas.getBoundingClientRect();
+      energyCanvas.width = energyRect.width * dpr;
+      energyCanvas.height = energyRect.height * dpr;
+      energyCtx.setTransform(1, 0, 0, 1, 0, 0);
+      energyCtx.scale(dpr, dpr);
+      
+      // スペクトルキャンバス
+      const specRect = spectrumCanvas.getBoundingClientRect();
+      spectrumCanvas.width = specRect.width * dpr;
+      spectrumCanvas.height = specRect.height * dpr;
+      spectrumCtx.setTransform(1, 0, 0, 1, 0, 0);
+      spectrumCtx.scale(dpr, dpr);
+    }
+    
+    // ========================================
+    // ボーア模型の描画
+    // ========================================
+    function drawBohrModel() {
+      const width = bohrCanvas.getBoundingClientRect().width;
+      const height = bohrCanvas.getBoundingClientRect().height;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const maxRadius = Math.min(width, height) * 0.42;
+      
+      // クリア
+      bohrCtx.clearRect(0, 0, width, height);
+      
+      // 背景のグラデーション
+      const bgGrad = bohrCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius * 1.5);
+      bgGrad.addColorStop(0, 'rgba(20, 30, 60, 0.3)');
+      bgGrad.addColorStop(1, 'rgba(10, 14, 23, 0)');
+      bohrCtx.fillStyle = bgGrad;
+      bohrCtx.fillRect(0, 0, width, height);
+      
+      // 軌道を描画（n=1〜6）
+      for (let n = 1; n <= 6; n++) {
+        const radius = getOrbitRadius(n, maxRadius);
+        
+        bohrCtx.beginPath();
+        bohrCtx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        
+        // ドラッグ中のターゲット軌道をハイライト
+        if (state.isDragging && n === state.dragTargetN && n !== state.electronN) {
+          // 下への遷移（放出）は黄色、上への遷移（励起）は水色
+          const isEmissionTarget = n < state.electronN;
+          if (isEmissionTarget) {
+            bohrCtx.strokeStyle = 'rgba(255, 217, 61, 0.9)';
+            bohrCtx.shadowColor = 'rgba(255, 217, 61, 0.7)';
+          } else {
+            bohrCtx.strokeStyle = 'rgba(100, 200, 255, 0.9)';
+            bohrCtx.shadowColor = 'rgba(100, 200, 255, 0.7)';
+          }
+          bohrCtx.lineWidth = 4;
+          bohrCtx.shadowBlur = 15;
+        }
+        // 電子がいる軌道
+        else if (n === state.electronN) {
+          bohrCtx.strokeStyle = 'rgba(0, 212, 170, 0.8)';
+          bohrCtx.lineWidth = 2.5;
+          bohrCtx.shadowColor = 'rgba(0, 212, 170, 0.5)';
+          bohrCtx.shadowBlur = 10;
+        }
+        // 遷移可能な軌道（電子と異なる軌道）
+        else if (state.isDragging && n !== state.electronN) {
+          bohrCtx.strokeStyle = 'rgba(74, 158, 255, 0.5)';
+          bohrCtx.lineWidth = 2;
+          bohrCtx.shadowBlur = 0;
+        }
+        // 通常の軌道
+        else {
+          bohrCtx.strokeStyle = 'rgba(74, 158, 255, 0.25)';
+          bohrCtx.lineWidth = 1;
+          bohrCtx.shadowBlur = 0;
+        }
+        bohrCtx.stroke();
+        bohrCtx.shadowBlur = 0;
+        
+        // 軌道番号ラベル
+        const labelAngle = -Math.PI / 4;
+        const labelX = centerX + (radius + 12) * Math.cos(labelAngle);
+        const labelY = centerY + (radius + 12) * Math.sin(labelAngle);
+        
+        bohrCtx.fillStyle = (state.isDragging && n === state.dragTargetN && n !== state.electronN)
+          ? (n < state.electronN ? 'rgba(255, 217, 61, 0.9)' : 'rgba(100, 200, 255, 0.9)')
+          : 'rgba(136, 146, 168, 0.7)';
+        bohrCtx.font = '11px sans-serif';
+        bohrCtx.textAlign = 'center';
+        bohrCtx.fillText(`n=${n}`, labelX, labelY);
+      }
+      
+      // 原子核を描画
+      drawNucleus(bohrCtx, centerX, centerY);
+      
+      // 電子を描画（超低速回転）
+      const electronOrbitRadius = getOrbitRadius(state.electronN, maxRadius);
+      const electronAngle = Date.now() * 0.0001;
+      let electronX, electronY;
+      
+      // ドラッグ中は現在位置に表示
+      if (state.isDragging && state.dragCurrentPos) {
+        electronX = state.dragCurrentPos.x;
+        electronY = state.dragCurrentPos.y;
+      } else {
+        electronX = centerX + electronOrbitRadius * Math.cos(electronAngle);
+        electronY = centerY + electronOrbitRadius * Math.sin(electronAngle);
+      }
+      
+      // 電子位置を保存
+      state.electronPos = { x: electronX, y: electronY };
+      
+      drawElectron(bohrCtx, electronX, electronY, state.isDragging);
+      
+      // ドラッグ中はターゲット情報を表示
+      if (state.isDragging && state.dragTargetN && state.dragTargetN !== state.electronN) {
+        const targetRadius = getOrbitRadius(state.dragTargetN, maxRadius);
+        const isEmissionTarget = state.dragTargetN < state.electronN;
+        
+        // ターゲットへの矢印線（点線）
+        bohrCtx.setLineDash([5, 5]);
+        bohrCtx.strokeStyle = isEmissionTarget 
+          ? 'rgba(255, 217, 61, 0.5)' 
+          : 'rgba(100, 200, 255, 0.5)';
+        bohrCtx.lineWidth = 2;
+        bohrCtx.beginPath();
+        bohrCtx.moveTo(electronX, electronY);
+        
+        const angle = Math.atan2(electronY - centerY, electronX - centerX);
+        const targetX = centerX + targetRadius * Math.cos(angle);
+        const targetY = centerY + targetRadius * Math.sin(angle);
+        bohrCtx.lineTo(targetX, targetY);
+        bohrCtx.stroke();
+        bohrCtx.setLineDash([]);
+        
+        // ターゲット位置にマーカー
+        bohrCtx.fillStyle = isEmissionTarget
+          ? 'rgba(255, 217, 61, 0.6)'
+          : 'rgba(100, 200, 255, 0.6)';
+        bohrCtx.beginPath();
+        bohrCtx.arc(targetX, targetY, 8, 0, Math.PI * 2);
+        bohrCtx.fill();
+      }
+      
+      // 光子アニメーションを描画
+      drawPhotons(bohrCtx, centerX, centerY, maxRadius);
+    }
+    
+    // 軌道半径の計算
+    function getOrbitRadius(n, maxRadius) {
+      return maxRadius * (0.15 + 0.14 * n);
+    }
+    
+    // 原子核の描画
+    function drawNucleus(ctx, x, y) {
+      // グロー効果
+      const glowGrad = ctx.createRadialGradient(x, y, 0, x, y, 20);
+      glowGrad.addColorStop(0, 'rgba(255, 159, 67, 0.6)');
+      glowGrad.addColorStop(0.5, 'rgba(255, 107, 107, 0.3)');
+      glowGrad.addColorStop(1, 'rgba(255, 107, 107, 0)');
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 核本体
+      const nucGrad = ctx.createRadialGradient(x - 2, y - 2, 0, x, y, 10);
+      nucGrad.addColorStop(0, '#ff9f43');
+      nucGrad.addColorStop(0.7, '#ff6b6b');
+      nucGrad.addColorStop(1, '#c0392b');
+      ctx.fillStyle = nucGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // ハイライト
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.beginPath();
+      ctx.arc(x - 3, y - 3, 3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // ラベル
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('H⁺', x, y);
+    }
+    
+    // 電子の描画
+    function drawElectron(ctx, x, y, isDragging) {
+      const radius = 12;
+      
+      // グロー効果
+      const glowGrad = ctx.createRadialGradient(x, y, 0, x, y, 35);
+      const glowColor = isDragging ? 'rgba(255, 217, 61, ' : 'rgba(0, 212, 170, ';
+      glowGrad.addColorStop(0, glowColor + '0.9)');
+      glowGrad.addColorStop(0.3, glowColor + '0.4)');
+      glowGrad.addColorStop(1, glowColor + '0)');
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, 35, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 電子本体
+      const elecGrad = ctx.createRadialGradient(x - 2, y - 2, 0, x, y, radius);
+      if (isDragging) {
+        elecGrad.addColorStop(0, '#fff');
+        elecGrad.addColorStop(0.5, '#ffd93d');
+        elecGrad.addColorStop(1, '#ff9f43');
+      } else {
+        elecGrad.addColorStop(0, '#00ffcc');
+        elecGrad.addColorStop(0.5, '#00d4aa');
+        elecGrad.addColorStop(1, '#4a9eff');
+      }
+      ctx.fillStyle = elecGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // ハイライト
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.beginPath();
+      ctx.arc(x - 3, y - 3, 4, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // e- ラベル
+      ctx.fillStyle = isDragging ? '#000' : '#000';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('e⁻', x, y);
+    }
+    
+    // 光子アニメーションの描画
+    function drawPhotons(ctx, centerX, centerY, maxRadius) {
+      const now = Date.now();
+      
+      state.emittedPhotons = state.emittedPhotons.filter(photon => {
+        const elapsed = now - photon.startTime;
+        const duration = 1200;
+        
+        if (elapsed > duration) return false;
+        
+        const progress = elapsed / duration;
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        
+        const distance = maxRadius * 0.3 + maxRadius * 0.7 * easeOut;
+        const x = centerX + distance * Math.cos(photon.angle);
+        const y = centerY + distance * Math.sin(photon.angle);
+        
+        const alpha = 1 - progress;
+        
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(photon.angle);
+        
+        // グロー
+        const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 18);
+        glowGrad.addColorStop(0, `rgba(${photon.color.r}, ${photon.color.g}, ${photon.color.b}, ${alpha * 0.8})`);
+        glowGrad.addColorStop(1, `rgba(${photon.color.r}, ${photon.color.g}, ${photon.color.b}, 0)`);
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, 18, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 波形
+        ctx.strokeStyle = `rgba(${photon.color.r}, ${photon.color.g}, ${photon.color.b}, ${alpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = -3; i <= 3; i++) {
+          const px = i * 8;
+          const py = Math.sin(i * Math.PI / 2 + now * 0.01) * 6;
+          if (i === -3) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        
+        ctx.restore();
+        return true;
+      });
+    }
+    
+    // ========================================
+    // エネルギー準位図の描画
+    // ========================================
+    function drawEnergyDiagram() {
+      const width = energyCanvas.getBoundingClientRect().width;
+      const height = energyCanvas.getBoundingClientRect().height;
+      const bohrHeight = bohrCanvas.getBoundingClientRect().height;
+      const bohrCenterY = bohrHeight / 2;
+      const maxRadius = Math.min(bohrCanvas.getBoundingClientRect().width, bohrHeight) * 0.42;
+      
+      const padding = { top: 20, bottom: 20, left: 35, right: 10 };
+      
+      energyCtx.clearRect(0, 0, width, height);
+      
+      // 軸を描画
+      energyCtx.strokeStyle = 'rgba(136, 146, 168, 0.4)';
+      energyCtx.lineWidth = 1;
+      energyCtx.beginPath();
+      energyCtx.moveTo(padding.left, padding.top);
+      energyCtx.lineTo(padding.left, height - padding.bottom);
+      energyCtx.stroke();
+      
+      // 各準位を描画（ボーア模型の軌道位置と一致させる）
+      const levelWidth = width - padding.left - padding.right - 5;
+      const levelStartX = padding.left + 3;
+      
+      for (let n = 1; n <= 6; n++) {
+        const energy = PHYSICS.getEnergy(n);
+        // ボーア模型の軌道Y位置と一致させる
+        const orbitRadius = getOrbitRadius(n, maxRadius);
+        const y = bohrCenterY - orbitRadius; // 上側の軌道位置
+        
+        // ドラッグ中のターゲット
+        if (state.isDragging && n === state.dragTargetN && n !== state.electronN) {
+          const isEmissionTarget = n < state.electronN;
+          if (isEmissionTarget) {
+            energyCtx.strokeStyle = 'rgba(255, 217, 61, 0.9)';
+            energyCtx.shadowColor = 'rgba(255, 217, 61, 0.5)';
+          } else {
+            energyCtx.strokeStyle = 'rgba(100, 200, 255, 0.9)';
+            energyCtx.shadowColor = 'rgba(100, 200, 255, 0.5)';
+          }
+          energyCtx.lineWidth = 3;
+          energyCtx.shadowBlur = 8;
+        }
+        // 電子がいる準位
+        else if (n === state.electronN) {
+          energyCtx.strokeStyle = 'rgba(0, 212, 170, 0.9)';
+          energyCtx.lineWidth = 2.5;
+          energyCtx.shadowColor = 'rgba(0, 212, 170, 0.5)';
+          energyCtx.shadowBlur = 6;
+        }
+        // 通常の準位
+        else {
+          energyCtx.strokeStyle = 'rgba(74, 158, 255, 0.5)';
+          energyCtx.lineWidth = 1.5;
+          energyCtx.shadowBlur = 0;
+        }
+        
+        energyCtx.beginPath();
+        energyCtx.moveTo(levelStartX, y);
+        energyCtx.lineTo(levelStartX + levelWidth, y);
+        energyCtx.stroke();
+        energyCtx.shadowBlur = 0;
+        
+        // エネルギー値ラベル
+        let labelColor;
+        if (state.isDragging && n === state.dragTargetN && n !== state.electronN) {
+          labelColor = (n < state.electronN) ? '#ffd93d' : '#64c8ff';
+        } else if (n === state.electronN) {
+          labelColor = '#00d4aa';
+        } else {
+          labelColor = 'rgba(136, 146, 168, 0.7)';
+        }
+        energyCtx.fillStyle = labelColor;
+        energyCtx.font = '9px sans-serif';
+        energyCtx.textAlign = 'right';
+        energyCtx.textBaseline = 'middle';
+        energyCtx.fillText(`${energy.toFixed(1)}`, padding.left - 3, y);
+        
+        // n値ラベル
+        energyCtx.textAlign = 'left';
+        energyCtx.fillText(`n=${n}`, levelStartX + levelWidth + 3, y);
+      }
+      
+      // 電子マーカー
+      const electronY = bohrCenterY - getOrbitRadius(state.electronN, maxRadius);
+      energyCtx.fillStyle = state.isDragging ? '#ffd93d' : '#00d4aa';
+      energyCtx.beginPath();
+      energyCtx.arc(levelStartX + levelWidth / 2, electronY, 5, 0, Math.PI * 2);
+      energyCtx.fill();
+      
+      // ドラッグ中は遷移矢印をプレビュー
+      if (state.isDragging && state.dragTargetN && state.dragTargetN !== state.electronN) {
+        const fromY = electronY;
+        const toY = bohrCenterY - getOrbitRadius(state.dragTargetN, maxRadius);
+        const arrowX = levelStartX + levelWidth / 2;
+        const isEmissionTarget = state.dragTargetN < state.electronN;
+        
+        // 矢印
+        const arrowColor = isEmissionTarget 
+          ? 'rgba(255, 217, 61, 0.7)' 
+          : 'rgba(100, 200, 255, 0.7)';
+        energyCtx.strokeStyle = arrowColor;
+        energyCtx.lineWidth = 2;
+        energyCtx.setLineDash([4, 4]);
+        energyCtx.beginPath();
+        energyCtx.moveTo(arrowX, fromY);
+        energyCtx.lineTo(arrowX, toY);
+        energyCtx.stroke();
+        energyCtx.setLineDash([]);
+        
+        // 矢じり（遷移方向に応じて向きを変える）
+        energyCtx.fillStyle = arrowColor;
+        energyCtx.beginPath();
+        energyCtx.moveTo(arrowX, toY);
+        if (isEmissionTarget) {
+          // 下向き矢印（放出）
+          energyCtx.lineTo(arrowX - 5, toY - 8);
+          energyCtx.lineTo(arrowX + 5, toY - 8);
+        } else {
+          // 上向き矢印（励起）
+          energyCtx.lineTo(arrowX - 5, toY + 8);
+          energyCtx.lineTo(arrowX + 5, toY + 8);
+        }
+        energyCtx.closePath();
+        energyCtx.fill();
+      }
+      
+      // 最後の遷移を矢印で表示（放出の場合のみ）
+      if (state.lastTransition && state.lastTransition.type === 'emission' && !state.isDragging) {
+        const fromY = bohrCenterY - getOrbitRadius(state.lastTransition.from, maxRadius);
+        const toY = bohrCenterY - getOrbitRadius(state.lastTransition.to, maxRadius);
+        const arrowX = levelStartX + levelWidth / 2;
+        
+        const series = PHYSICS.getSeries(state.lastTransition.to);
+        let arrowColor;
+        if (series === 'lyman') arrowColor = 'rgba(168, 85, 247, 0.8)';
+        else if (series === 'balmer') arrowColor = 'rgba(74, 158, 255, 0.8)';
+        else arrowColor = 'rgba(255, 107, 107, 0.8)';
+        
+        energyCtx.strokeStyle = arrowColor;
+        energyCtx.lineWidth = 2;
+        energyCtx.beginPath();
+        energyCtx.moveTo(arrowX, fromY);
+        energyCtx.lineTo(arrowX, toY);
+        energyCtx.stroke();
+        
+        energyCtx.fillStyle = arrowColor;
+        energyCtx.beginPath();
+        energyCtx.moveTo(arrowX, toY);
+        energyCtx.lineTo(arrowX - 5, toY - 8);
+        energyCtx.lineTo(arrowX + 5, toY - 8);
+        energyCtx.closePath();
+        energyCtx.fill();
+      }
+      
+      // 単位ラベル
+      energyCtx.fillStyle = 'rgba(136, 146, 168, 0.5)';
+      energyCtx.font = '9px sans-serif';
+      energyCtx.textAlign = 'center';
+      energyCtx.fillText('eV', padding.left, height - 5);
+    }
+    
+    // ========================================
+    // スペクトルの描画
+    // ========================================
+    function drawSpectrum() {
+      const width = spectrumCanvas.getBoundingClientRect().width;
+      const height = spectrumCanvas.getBoundingClientRect().height;
+      const padding = { top: 15, bottom: 28, left: 50, right: 30 };
+      
+      spectrumCtx.clearRect(0, 0, width, height);
+      
+      // 波長範囲（nm）
+      const wlMin = 80;
+      const wlMax = 2000;
+      
+      // 対数スケールで波長をX座標に変換
+      const wlToX = (wl) => {
+        const logMin = Math.log10(wlMin);
+        const logMax = Math.log10(wlMax);
+        const logWl = Math.log10(wl);
+        return padding.left + (logWl - logMin) / (logMax - logMin) * (width - padding.left - padding.right);
+      };
+      
+      const spectrumY = padding.top;
+      const spectrumHeight = height - padding.top - padding.bottom;
+      
+      // UV領域
+      const uvGrad = spectrumCtx.createLinearGradient(wlToX(80), 0, wlToX(380), 0);
+      uvGrad.addColorStop(0, 'rgba(88, 28, 135, 0.4)');
+      uvGrad.addColorStop(1, 'rgba(139, 92, 246, 0.3)');
+      spectrumCtx.fillStyle = uvGrad;
+      spectrumCtx.fillRect(wlToX(80), spectrumY, wlToX(380) - wlToX(80), spectrumHeight);
+      
+      // 可視光領域
+      const visGrad = spectrumCtx.createLinearGradient(wlToX(380), 0, wlToX(780), 0);
+      visGrad.addColorStop(0, 'rgba(139, 92, 246, 0.6)');
+      visGrad.addColorStop(0.15, 'rgba(59, 130, 246, 0.6)');
+      visGrad.addColorStop(0.35, 'rgba(16, 185, 129, 0.6)');
+      visGrad.addColorStop(0.55, 'rgba(234, 179, 8, 0.6)');
+      visGrad.addColorStop(0.75, 'rgba(249, 115, 22, 0.6)');
+      visGrad.addColorStop(1, 'rgba(239, 68, 68, 0.6)');
+      spectrumCtx.fillStyle = visGrad;
+      spectrumCtx.fillRect(wlToX(380), spectrumY, wlToX(780) - wlToX(380), spectrumHeight);
+      
+      // 枠線
+      spectrumCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      spectrumCtx.lineWidth = 1;
+      spectrumCtx.strokeRect(wlToX(380), spectrumY, wlToX(780) - wlToX(380), spectrumHeight);
+      
+      // IR領域
+      const irGrad = spectrumCtx.createLinearGradient(wlToX(780), 0, wlToX(2000), 0);
+      irGrad.addColorStop(0, 'rgba(239, 68, 68, 0.3)');
+      irGrad.addColorStop(1, 'rgba(127, 29, 29, 0.2)');
+      spectrumCtx.fillStyle = irGrad;
+      spectrumCtx.fillRect(wlToX(780), spectrumY, wlToX(2000) - wlToX(780), spectrumHeight);
+      
+      // 領域ラベル
+      spectrumCtx.fillStyle = 'rgba(168, 85, 247, 0.7)';
+      spectrumCtx.font = '10px sans-serif';
+      spectrumCtx.textAlign = 'center';
+      spectrumCtx.fillText('UV', (wlToX(80) + wlToX(380)) / 2, spectrumY + 12);
+      
+      spectrumCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      spectrumCtx.fillText('可視光', (wlToX(380) + wlToX(780)) / 2, spectrumY + 12);
+      
+      spectrumCtx.fillStyle = 'rgba(239, 68, 68, 0.7)';
+      spectrumCtx.fillText('IR', (wlToX(780) + wlToX(2000)) / 2, spectrumY + 12);
+      
+      // 波長軸
+      spectrumCtx.strokeStyle = 'rgba(136, 146, 168, 0.4)';
+      spectrumCtx.beginPath();
+      spectrumCtx.moveTo(padding.left, height - padding.bottom);
+      spectrumCtx.lineTo(width - padding.right, height - padding.bottom);
+      spectrumCtx.stroke();
+      
+      // 波長目盛り
+      const tickWavelengths = [100, 200, 400, 600, 800, 1200, 1800];
+      spectrumCtx.fillStyle = 'rgba(136, 146, 168, 0.7)';
+      spectrumCtx.font = '9px sans-serif';
+      spectrumCtx.textAlign = 'center';
+      
+      tickWavelengths.forEach(wl => {
+        const x = wlToX(wl);
+        spectrumCtx.beginPath();
+        spectrumCtx.moveTo(x, height - padding.bottom);
+        spectrumCtx.lineTo(x, height - padding.bottom + 4);
+        spectrumCtx.stroke();
+        spectrumCtx.fillText(`${wl}`, x, height - padding.bottom + 14);
+      });
+      
+      spectrumCtx.fillText('波長 (nm)', width / 2, height - 2);
+      
+      // 記録されたスペクトル線
+      state.spectrumLines.forEach(line => {
+        if (!state.filters[line.series]) return;
+        
+        const x = wlToX(line.wavelength);
+        const color = line.color;
+        
+        // グロー
+        const glowGrad = spectrumCtx.createLinearGradient(x - 12, 0, x + 12, 0);
+        glowGrad.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+        glowGrad.addColorStop(0.5, `rgba(${color.r}, ${color.g}, ${color.b}, 0.4)`);
+        glowGrad.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+        spectrumCtx.fillStyle = glowGrad;
+        spectrumCtx.fillRect(x - 12, spectrumY + 18, 24, spectrumHeight - 18);
+        
+        // 輝線
+        spectrumCtx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+        spectrumCtx.lineWidth = 2;
+        spectrumCtx.shadowColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+        spectrumCtx.shadowBlur = 6;
+        spectrumCtx.beginPath();
+        spectrumCtx.moveTo(x, spectrumY + 18);
+        spectrumCtx.lineTo(x, spectrumY + spectrumHeight);
+        spectrumCtx.stroke();
+        spectrumCtx.shadowBlur = 0;
+        
+        // 遷移ラベル
+        spectrumCtx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.9)`;
+        spectrumCtx.font = '8px sans-serif';
+        spectrumCtx.textAlign = 'center';
+        spectrumCtx.fillText(`${line.from}→${line.to}`, x, spectrumY + spectrumHeight + 10);
+      });
+    }
+    
+    // ========================================
+    // 遷移処理
+    // ========================================
+    function performTransition(fromN, toN) {
+      if (fromN === toN) return;
+      
+      const isEmission = fromN > toN; // 放出（下への遷移）
+      const energy = Math.abs(PHYSICS.getTransitionEnergy(fromN, toN));
+      const wavelength = PHYSICS.energyToWavelength(energy);
+      const color = PHYSICS.wavelengthToColor(wavelength);
+      const series = isEmission ? PHYSICS.getSeries(toN) : null;
+      
+      // 電子を移動
+      state.electronN = toN;
+      
+      if (isEmission) {
+        // 放出の場合：光子を発射してスペクトルに記録
+        state.lastTransition = { 
+          from: fromN, 
+          to: toN, 
+          energy, 
+          wavelength, 
+          series,
+          type: 'emission'
+        };
+        
+        // 光子を発射
+        for (let i = 0; i < 4; i++) {
+          state.emittedPhotons.push({
+            startTime: Date.now(),
+            angle: Math.random() * Math.PI * 2,
+            wavelength,
+            color
+          });
+        }
+        
+        // スペクトル線を追加
+        const exists = state.spectrumLines.some(l => l.from === fromN && l.to === toN);
+        if (!exists) {
+          state.spectrumLines.push({ from: fromN, to: toN, wavelength, color, series });
+        }
+      } else {
+        // 励起の場合：エフェクトなし、情報のみ更新
+        state.lastTransition = { 
+          from: fromN, 
+          to: toN, 
+          energy, 
+          wavelength, 
+          series: null,
+          type: 'absorption'
+        };
+      }
+      
+      updateTransitionInfo();
+    }
+    
+    function updateTransitionInfo() {
+      const info = state.lastTransition;
+      if (!info) return;
+      
+      if (info.type === 'emission') {
+        const seriesName = PHYSICS.getSeriesName(info.series);
+        const lightType = PHYSICS.getLightType(info.wavelength);
+        
+        document.getElementById('transitionInfo').innerHTML = `
+          <strong style="color: #00d4aa;">💡 放出</strong><br>
+          n=${info.from} → n=${info.to}<br>
+          ${seriesName}<br>
+          波長: <span class="info-highlight">${Math.round(info.wavelength)} nm</span><br>
+          種類: ${lightType}
+        `;
+      } else {
+        // 励起の場合
+        document.getElementById('transitionInfo').innerHTML = `
+          <strong style="color: #ffd93d;">⬆ 励起</strong><br>
+          n=${info.from} → n=${info.to}<br>
+          <span style="color: var(--text-dim);">（光は放出されません）</span>
+        `;
+      }
+    }
+    
+    // ========================================
+    // マウス・タッチ操作
+    // ========================================
+    function getCanvasPos(canvas, e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    }
+    
+    function isClickOnElectron(x, y) {
+      const dist = Math.sqrt((x - state.electronPos.x) ** 2 + (y - state.electronPos.y) ** 2);
+      return dist < 40;
+    }
+    
+    function getTargetOrbit(x, y) {
+      const rect = bohrCanvas.getBoundingClientRect();
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const maxRadius = Math.min(rect.width, rect.height) * 0.42;
+      const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+      
+      for (let n = 1; n <= 6; n++) {
+        const orbitRadius = getOrbitRadius(n, maxRadius);
+        if (Math.abs(dist - orbitRadius) < 25) {
+          return n;
+        }
+      }
+      
+      // 軌道の間にいる場合、最も近い内側の軌道を返す
+      for (let n = 6; n >= 1; n--) {
+        const orbitRadius = getOrbitRadius(n, maxRadius);
+        if (dist < orbitRadius + 15) {
+          return n;
+        }
+      }
+      return null;
+    }
+    
+    // マウスイベント
+    function handleStart(e) {
+      const pos = getCanvasPos(bohrCanvas, e);
+      if (isClickOnElectron(pos.x, pos.y)) {
+        state.isDragging = true;
+        state.dragStartN = state.electronN;
+        state.dragCurrentPos = pos;
+        state.dragTargetN = null;
+        bohrCanvas.style.cursor = 'grabbing';
+        e.preventDefault();
+      }
+    }
+    
+    function handleMove(e) {
+      const pos = getCanvasPos(bohrCanvas, e);
+      
+      if (state.isDragging) {
+        state.dragCurrentPos = pos;
+        const targetN = getTargetOrbit(pos.x, pos.y);
+        // 現在の軌道と異なる軌道ならターゲットに設定（上下どちらもOK）
+        state.dragTargetN = (targetN && targetN !== state.electronN) ? targetN : null;
+        e.preventDefault();
+      } else {
+        bohrCanvas.style.cursor = isClickOnElectron(pos.x, pos.y) ? 'grab' : 'default';
+      }
+    }
+    
+    function handleEnd(e) {
+      if (state.isDragging) {
+        if (state.dragTargetN && state.dragTargetN !== state.electronN) {
+          performTransition(state.electronN, state.dragTargetN);
+        }
+        state.isDragging = false;
+        state.dragStartN = null;
+        state.dragTargetN = null;
+        state.dragCurrentPos = null;
+        bohrCanvas.style.cursor = 'default';
+      }
+    }
+    
+    // マウスイベント
+    bohrCanvas.addEventListener('mousedown', handleStart);
+    bohrCanvas.addEventListener('mousemove', handleMove);
+    bohrCanvas.addEventListener('mouseup', handleEnd);
+    bohrCanvas.addEventListener('mouseleave', handleEnd);
+    
+    // タッチイベント
+    bohrCanvas.addEventListener('touchstart', handleStart, { passive: false });
+    bohrCanvas.addEventListener('touchmove', handleMove, { passive: false });
+    bohrCanvas.addEventListener('touchend', handleEnd);
+    bohrCanvas.addEventListener('touchcancel', handleEnd);
+    
+    // ========================================
+    // コントロール
+    // ========================================
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      state.electronN = 6;
+      state.lastTransition = null;
+      state.emittedPhotons = [];
+      document.getElementById('transitionInfo').innerHTML = 
+        '電子を移動させると<br>ここに情報が表示されます<br><span style="color:var(--text-dim);font-size:0.7rem;">内側→放出 / 外側→励起</span>';
+    });
+    
+    document.getElementById('clearSpectrumBtn').addEventListener('click', () => {
+      state.spectrumLines = [];
+    });
+    
+    document.getElementById('showLyman').addEventListener('change', (e) => {
+      state.filters.lyman = e.target.checked;
+    });
+    
+    document.getElementById('showBalmer').addEventListener('change', (e) => {
+      state.filters.balmer = e.target.checked;
+    });
+    
+    document.getElementById('showPaschen').addEventListener('change', (e) => {
+      state.filters.paschen = e.target.checked;
+    });
+    
+    // ========================================
+    // アニメーションループ
+    // ========================================
+    function animate() {
+      drawBohrModel();
+      drawEnergyDiagram();
+      drawSpectrum();
+      requestAnimationFrame(animate);
+    }
+    
+    // ========================================
+    // 初期化
+    // ========================================
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        resizeCanvases();
+      }, 100);
+    });
+    
+    // 画面回転対応
+    window.addEventListener('orientationchange', () => {
+      setTimeout(resizeCanvases, 200);
+    });
+    
+    resizeCanvases();
+    animate();
+  </script>
+</body>
+</html>
